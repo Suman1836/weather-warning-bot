@@ -11,12 +11,9 @@ GEMINI_KEY = os.environ["GEMINI_API_KEY"].strip().replace('"', '')
 EMAIL_USER = os.environ["EMAIL_USER"].strip()
 EMAIL_PASS = os.environ["EMAIL_PASS"].strip()
 
-# --- 👤 Sender Name (তোমার নাম এখানে দাও) ---
-SENDER_NAME = "Suman Karan" 
-
 # --- 📧 রিসিভার লিস্ট ---
 RECIPIENTS = [
-    EMAIL_USER,                       # তোমার ইমেইল
+    EMAIL_USER,                       # তোমার নিজের ইমেইল
     "mangalmishra.contai@gmail.com",  # ১ নম্বর বন্ধু
     "tazlaloki@gmail.com"             # ২ নম্বর বন্ধু
 ]
@@ -53,20 +50,18 @@ def get_air_quality(lat, lon):
         response = requests.get(url)
         data = response.json()
         aqi_index = data["list"][0]["main"]["aqi"]
-        pm25 = data["list"][0]["components"]["pm2_5"]
 
-        # Real AQI Calculation (Simplified)
-        if pm25 <= 12.0: score = round((50/12)*pm25)
-        elif pm25 <= 35.4: score = round(((49/23.3)*(pm25-12.1))+51)
-        elif pm25 <= 55.4: score = round(((49/19.9)*(pm25-35.5))+101)
-        else: score = round(((99/94.9)*(pm25-55.5))+151) # Rough high range
-
-        if score <= 50: return {"score": score, "label": "Good", "emoji": "🟢", "color": "#00e400"}
-        elif score <= 100: return {"score": score, "label": "Moderate", "emoji": "🟡", "color": "#ffff00"}
-        elif score <= 150: return {"score": score, "label": "Sensitive", "emoji": "🟠", "color": "#ff7e00"}
-        else: return {"score": score, "label": "Unhealthy", "emoji": "🔴", "color": "#ff0000"}
-            
-    except: return {"score": "N/A", "label": "Unknown", "emoji": "❓", "color": "#grey"}
+        meta = {
+            1: {"label": "Good", "emoji": "🟢", "advice": "Enjoy outdoor activities."},
+            2: {"label": "Fair", "emoji": "🟡", "advice": "Air quality is acceptable."},
+            3: {"label": "Moderate", "emoji": "🟠", "advice": "Sensitive groups reduce exertion."},
+            4: {"label": "Poor", "emoji": "🔴", "advice": "Limit time outside. Consider a mask."},
+            5: {"label": "Hazardous", "emoji": "☠️", "advice": "Stay indoors! Wear a mask outside."},
+        }
+        info = meta.get(aqi_index, {"label": "Unknown", "emoji": "❓", "advice": "No Data"})
+        return {"index": aqi_index, "label": info["label"], "emoji": info["emoji"], "advice": info["advice"]}
+    except:
+        return {"index": None, "label": "Unknown", "emoji": "❓", "advice": "No Data"}
 
 # --- 3. Generate HTML Report ---
 def generate_html_report(w, aqi):
@@ -75,13 +70,14 @@ def generate_html_report(w, aqi):
     Act as a UI Designer. Create a SINGLE HTML email template.
     DATA:
     - City: {w['city']}, Temp: {w['temp']}C, Cond: {w['condition']}
-    - **Real AQI:** {aqi['score']} ({aqi['label']}) {aqi['emoji']}
+    - AQI: {aqi['index']} ({aqi['label']}) {aqi['emoji']} - {aqi['advice']}
     
     DESIGN:
     - Modern Weather Card style.
+    - Beautiful Gradient Background.
     - Large Temp text.
-    - **AQI Section:** Circular badge with Score "{aqi['score']}". Color {aqi['color']}.
-    - Footer: "Stay safe!"
+    - Distinct section for AQI with color coding.
+    - Footer: "Stay safe & productive!"
     OUTPUT: Only raw HTML code.
     """
     try:
@@ -89,30 +85,28 @@ def generate_html_report(w, aqi):
         return res.text.replace("```html", "").replace("```", "")
     except: return None
 
-# --- 4. Send Personalized Emails ---
+# --- 4. Send Individual Emails (Loop) ---
 def send_email(html_content, weather, aqi):
-    print(f"Sending to {len(RECIPIENTS)} people...")
+    print(f"Starting to send emails to {len(RECIPIENTS)} people...")
 
     emoji = "☀️" if "Clear" in weather["condition"] else "☁️"
     if "Rain" in weather["condition"]: emoji = "🌧️"
     
-    subject = f"{emoji} Weather: {weather['temp']}°C | AQI: {aqi['score']}"
+    subject = f"{emoji} {weather['city']} Weather: {weather['temp']}°C | AQI: {aqi['label']}"
 
     try:
+        # সার্ভারের সাথে একবার কানেক্ট হয়ে লুপ চালানো হবে (দ্রুত হবে)
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(EMAIL_USER, EMAIL_PASS)
             
+            # লুপ চালিয়ে প্রত্যেককে আলাদা আলাদা ইমেইল পাঠানো
             for person in RECIPIENTS:
                 msg = EmailMessage()
                 msg["Subject"] = subject
+                msg["From"] = EMAIL_USER
+                msg["To"] = person  # <--- এখানে যার ইমেইল, তার নামই বসবে
                 
-                # --- এই লাইনটা পরিবর্তন করা হয়েছে ---
-                # এখন দেখাবে: "Fuck <email@gmail.com>"
-                msg["From"] = f"{SENDER_NAME} <{EMAIL_USER}>"
-                
-                msg["To"] = person
-                
-                msg.set_content("Enable HTML to view.", subtype="plain")
+                msg.set_content("Please enable HTML to view this email.", subtype="plain")
                 msg.add_alternative(html_content, subtype="html")
                 
                 smtp.send_message(msg)

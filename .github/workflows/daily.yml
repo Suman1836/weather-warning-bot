@@ -1,0 +1,32 @@
+name: Weather Warning
+
+on:
+  schedule:
+    # UTC 00:30 মানে ইন্ডিয়া টাইম সকাল ৬:০০ টা
+    - cron: '30 0 * * *'
+  workflow_dispatch: # ম্যানুয়ালি রান করার বাটন
+
+jobs:
+  check-weather:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install libraries
+        run: pip install google-genai requests
+
+      - name: Run script
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: python main.py
+        

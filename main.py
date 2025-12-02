@@ -163,31 +163,36 @@ def generate_html_report(w, aqi):
         print(f"AI Error: {e}")
         return None
 
-# --- 4. Send Email ---
+# --- 4. Send Email (Privacy Fix: BCC) ---
 def send_email(html_content, weather, aqi):
     print(f"Sending Email to {len(RECIPIENTS)} people...")
-
+    
     msg = EmailMessage()
-    emoji = "☀️" if "Clear" in weather["condition"] else "☁️"
-    if "Rain" in weather["condition"]:
-        emoji = "🌧️"
-
-    # Subject Line with AQI value + label
+    emoji = "☀️" if "Clear" in weather['condition'] else "☁️"
+    if "Rain" in weather['condition']: emoji = "🌧️"
+    
+    # Subject Line
     aqi_part = f"AQI {aqi['index']} ({aqi['label']})"
     subject = f"{emoji} {weather['city']} Weather: {weather['temp']}°C | {aqi_part}"
-
-    msg["Subject"] = subject
-    msg["From"] = EMAIL_USER
-    msg["To"] = ", ".join(RECIPIENTS)
-
-    msg.set_content("Please enable HTML to view this email.", subtype="plain")
-    msg.add_alternative(html_content, subtype="html")
+    
+    msg['Subject'] = subject
+    msg['From'] = EMAIL_USER
+    
+    # --- CHANGE HERE (BCC Magic) ---
+    # 'To' তে শুধু তোমার নিজের ইমেইল থাকবে (যাতে প্রাপকরা দেখে যে ইমেইলটা তোমার থেকে এসেছে)
+    msg['To'] = EMAIL_USER 
+    
+    # আসল প্রাপকদের তালিকা 'Bcc' তে থাকবে (এটা লুকিয়ে থাকে)
+    msg['Bcc'] = ", ".join(RECIPIENTS)
+    
+    msg.set_content("Please enable HTML to view this email.", subtype='plain')
+    msg.add_alternative(html_content, subtype='html')
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
             smtp.login(EMAIL_USER, EMAIL_PASS)
             smtp.send_message(msg)
-        print("✅ Report Sent Successfully!")
+        print("✅ Report Sent Successfully (Hidden Recipients)!")
     except Exception as e:
         print(f"❌ Email Error: {e}")
 

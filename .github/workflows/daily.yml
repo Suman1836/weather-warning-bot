@@ -2,9 +2,9 @@ name: Weather Warning
 
 on:
   schedule:
-    # UTC 00:30 মানে ইন্ডিয়া টাইম সকাল ৬:০০ টা
+    # প্রতিদিন সকাল ৬:০০ টা (IST)
     - cron: '30 0 * * *'
-  workflow_dispatch: # ম্যানুয়ালি রান করার বাটন
+  workflow_dispatch:
 
 jobs:
   check-weather:
@@ -20,13 +20,13 @@ jobs:
           python-version: '3.11'
 
       - name: Install libraries
-        run: pip install google-genai requests
+        # openai এবং requests লাইব্রেরি
+        run: pip install openai requests
 
       - name: Run script
         env:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         run: python main.py
-        

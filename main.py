@@ -46,10 +46,6 @@ def get_weather():
             "pressure": data["main"]["pressure"],
             "visibility": data.get("visibility", 0) / 1000, # Convert to km
             "wind": data["wind"]["speed"],
-            "sunrise": datetime.fromtimestamp(data["sys"]["sunrise"]).strftime('%I:%M %p'),
-            "sunset": datetime.fromtimestamp(data["sys"]["sunset"]).strftime('%I:%M %p'),
-            "city": data["name"],
-            "country": data["sys"]["country"]
         }
     except Exception as e:
         print(f"Weather Fetch Error: {e}")

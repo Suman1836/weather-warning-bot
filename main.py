@@ -43,37 +43,20 @@ def get_weather():
             "condition": data["weather"][0]["main"],
             "description": data["weather"][0]["description"].title(),
             "humidity": data["main"]["humidity"],
+            "pressure": data["main"]["pressure"],
+            "visibility": data.get("visibility", 0) / 1000, # Convert to km
             "wind": data["wind"]["speed"],
+            "sunrise": datetime.fromtimestamp(data["sys"]["sunrise"]).strftime('%I:%M %p'),
+            "sunset": datetime.fromtimestamp(data["sys"]["sunset"]).strftime('%I:%M %p'),
             "city": data["name"],
-            "lat": data["coord"]["lat"],
-            "lon": data["coord"]["lon"]
+            "country": data["sys"]["country"]
         }
-    except: return None
+    except Exception as e:
+        print(f"Weather Fetch Error: {e}")
+        return None
 
-# --- 2. Get Air Quality ---
-def get_air_quality(lat, lon):
-    url = f"http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={WEATHER_KEY}"
-    try:
-        response = requests.get(url)
-        data = response.json()
-        
-        aqi_index = data["list"][0]["main"]["aqi"]
-        
-        meta = {
-            1: {"label": "Good", "emoji": "🟢", "advice": "Great air quality!"},
-            2: {"label": "Fair", "emoji": "🟡", "advice": "Acceptable air quality."},
-            3: {"label": "Moderate", "emoji": "🟠", "advice": "Sensitive groups take care."},
-            4: {"label": "Poor", "emoji": "🔴", "advice": "Unhealthy! Wear a mask."},
-            5: {"label": "Hazardous", "emoji": "☠️", "advice": "Dangerous! Stay indoors."},
-        }
-        
-        info = meta.get(aqi_index, {"label": "Unknown", "emoji": "❓", "advice": "No Data"})
-        return {"index": aqi_index, "label": info["label"], "emoji": info["emoji"], "advice": info["advice"]}
-    except:
-        return {"index": "?", "label": "Unknown", "emoji": "❓", "advice": "No Data"}
-
-# --- 3. Generate HTML Report (Creative Mode) ---
-def generate_html_report(w, aqi):
+# --- 2. Generate HTML Report (Creative Mode) ---
+def generate_html_report(w):
     print("Asking DeepSeek to create a unique design...")
     
     # --- HERE IS THE MAGIC PROMPT ---
@@ -81,20 +64,29 @@ def generate_html_report(w, aqi):
     prompt = f"""
     You are a World-Class UI/UX Designer.
     
-    TASK: Create a stunning, modern HTML Email Template for today's weather.
+    TASK: Create a stunning, modern, and advanced HTML Email Template for today's weather.
     
     REAL-TIME DATA:
-    - Location: {w['city']}
-    - Weather: {w['temp']}°C, {w['condition']} ({w['description']})
-    - Air Quality: AQI {aqi['index']} ({aqi['label']} {aqi['emoji']})
-    - Advice: {aqi['advice']}
+    - Location: {w['city']}, {w['country']}
+    - Weather: {w['temp']}°C (Feels like {w['feels_like']}°C)
+    - Condition: {w['condition']} ({w['description']})
+    - Wind: {w['wind']} m/s
+    - Humidity: {w['humidity']}%
+    - Pressure: {w['pressure']} hPa
+    - Visibility: {w['visibility']} km
+    - Sunrise: {w['sunrise']}
+    - Sunset: {w['sunset']}
     
     CREATIVE INSTRUCTIONS:
-    1. **Design Freedom:** I am NOT giving you color codes or layout rules. You decide the best design based on the weather condition.
-       - Example: If it's sunny, maybe use warm, bright gradients. If it's rainy, use moody blues/grays. If AQI is bad, make it look urgent (Red/Dark).
-    2. **Modern aesthetic:** Make it look like an Apple/Google Weather App widget.
+    1. **Design Philosophy:** Use "Glassmorphism" or "Neomorphism" style. Clean, minimalist, and high-end (Apple/iOS 17 style).
+       - Use soft shadows, blur effects, and modern gradients matching the weather (e.g., Orange/Purple for Sunset, Blue/White for Clear Sky).
+    2. **Content Strategy:**
+       - **Greeting:** A warm, intelligent greeting based on the current weather.
+       - **Outfit Advice:** Suggest what to wear (e.g., "Light jacket recommended", "Perfect for a t-shirt").
+       - **Health/Activity Tip:** Suggest an activity or health tip (e.g., "Great for a run", "Stay hydrated").
+       - **Quote:** A short, inspiring quote related to nature, weather, or success.
     3. **Tech Stack:** Use only HTML and inline CSS. No JavaScript.
-    4. **Responsiveness:** It must look perfect on Mobile screens (Gmail).
+    4. **Responsiveness:** It must look perfect on Mobile screens (Gmail, Apple Mail). Use a card-based layout centered on the screen.
     
     OUTPUT: Provide ONLY the raw HTML code starting with <!DOCTYPE html>. Do not add any markdown blocks or explanations.
     """
@@ -116,14 +108,19 @@ def generate_html_report(w, aqi):
         print(f"AI Error: {e}")
         return None
 
-# --- 4. Send Individual Emails ---
-def send_email(html_content, weather, aqi):
+# --- 3. Send Individual Emails ---
+def send_email(html_content, weather):
     print(f"Sending to {len(RECIPIENTS)} people...")
 
-    emoji = "☀️" if "Clear" in weather["condition"] else "☁️"
+    emoji = "☀️"
+    if "Cloud" in weather["condition"]: emoji = "☁️"
     if "Rain" in weather["condition"]: emoji = "🌧️"
+    if "Snow" in weather["condition"]: emoji = "❄️"
+    if "Thunderstorm" in weather["condition"]: emoji = "⚡"
+    if "Drizzle" in weather["condition"]: emoji = "🌦️"
+    if "Mist" in weather["condition"] or "Fog" in weather["condition"]: emoji = "🌫️"
     
-    subject = f"{emoji} {weather['city']} Weather: {weather['temp']}°C | AQI: {aqi['label']}"
+    subject = f"{emoji} {weather['city']} Weather Update: {weather['temp']}°C | {weather['condition']}"
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
@@ -148,9 +145,8 @@ def send_email(html_content, weather, aqi):
 if __name__ == "__main__":
     weather = get_weather()
     if weather:
-        aqi = get_air_quality(weather["lat"], weather["lon"])
-        html = generate_html_report(weather, aqi)
+        html = generate_html_report(weather)
         if html:
-            send_email(html, weather, aqi)
+            send_email(html, weather)
     else:
         print("Failed to fetch data.")

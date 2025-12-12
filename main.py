@@ -74,9 +74,7 @@ def generate_html_report(w):
     - Humidity: {w['humidity']}%
     - Pressure: {w['pressure']} hPa
     - Visibility: {w['visibility']} km
-    - Sunrise: {w['sunrise']}
-    - Sunset: {w['sunset']}
-    
+
     CREATIVE INSTRUCTIONS:
     1. **Design Philosophy:** Use "Glassmorphism" or "Neomorphism" style. Clean, minimalist, and high-end (Apple/iOS 17 style).
        - Use soft shadows, blur effects, and modern gradients matching the weather (e.g., Orange/Purple for Sunset, Blue/White for Clear Sky).

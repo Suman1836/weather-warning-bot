@@ -4,12 +4,31 @@ import smtplib
 from email.message import EmailMessage
 from datetime import datetime
 from openai import OpenAI
+import sys
 
 # --- 🔑 Setup Keys ---
+print("--- 🚀 Starting Weather Script ---")
+
 WEATHER_KEY = os.environ.get("OPENWEATHER_API_KEY")
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip().replace('"', '')
 EMAIL_USER = os.environ.get("EMAIL_USER", "").strip()
 EMAIL_PASS = os.environ.get("EMAIL_PASS", "").strip()
+
+# Check keys
+if not WEATHER_KEY:
+    print("❌ Error: OPENWEATHER_API_KEY is missing.")
+else:
+    print("✅ OPENWEATHER_API_KEY found.")
+
+if not OPENROUTER_KEY:
+    print("❌ Error: OPENROUTER_API_KEY is missing.")
+else:
+    print("✅ OPENROUTER_API_KEY found.")
+
+if not EMAIL_USER or not EMAIL_PASS:
+    print("❌ Error: Email credentials missing.")
+else:
+    print("✅ Email credentials found.")
 
 # --- 👤 Sender Details ---
 SENDER_NAME = "Suman Karan"
@@ -24,19 +43,28 @@ RECIPIENTS = [
 CITY = "Contai"
 
 # --- OpenAI Client (OpenRouter) ---
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=OPENROUTER_KEY,
-)
+try:
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=OPENROUTER_KEY,
+    )
+    print("✅ OpenAI Client initialized.")
+except Exception as e:
+    print(f"❌ OpenAI Client Init Error: {e}")
 
 # --- 1. Get Weather Data ---
 def get_weather():
+    print(f"🌍 Fetching weather for {CITY}...")
     url = f"http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={WEATHER_KEY}&units=metric"
     try:
         response = requests.get(url)
         data = response.json()
-        if data["cod"] != 200: return None
+        
+        if response.status_code != 200:
+            print(f"❌ Weather API Error: {data.get('message', 'Unknown error')}")
+            return None
 
+        print("✅ Weather data fetched successfully.")
         return {
             "temp": int(data["main"]["temp"]),
             "feels_like": int(data["main"]["feels_like"]),
@@ -46,14 +74,16 @@ def get_weather():
             "pressure": data["main"]["pressure"],
             "visibility": data.get("visibility", 0) / 1000, # Convert to km
             "wind": data["wind"]["speed"],
+            "city": data["name"],
+            "country": data["sys"]["country"]
         }
     except Exception as e:
-        print(f"Weather Fetch Error: {e}")
+        print(f"❌ Weather Fetch Exception: {e}")
         return None
 
 # --- 2. Generate HTML Report (Creative Mode) ---
 def generate_html_report(w):
-    print("Asking DeepSeek to create a unique design...")
+    print("🤖 Asking DeepSeek to create a unique design...")
     
     # --- HERE IS THE MAGIC PROMPT ---
     # আমরা ডিজাইন বলে দিচ্ছি না, AI-কে স্বাধীনতা দিচ্ছি।
@@ -70,9 +100,9 @@ def generate_html_report(w):
     - Humidity: {w['humidity']}%
     - Pressure: {w['pressure']} hPa
     - Visibility: {w['visibility']} km
-
+    
     CREATIVE INSTRUCTIONS:
-    1. **Design Philosophy:** Use "Glassmorphism" or "Neomorphism" style. Clean, minimalist, and high-end (Apple/iOS 17 style).
+    1. **Design Philosophy:** Use "Glassmorphism" or "Neomorphism" style. Clean, minimalist, and high-end (Apple/iOS 17 style). 
        - Use soft shadows, blur effects, and modern gradients matching the weather (e.g., Orange/Purple for Sunset, Blue/White for Clear Sky).
     2. **Content Strategy:**
        - **Greeting:** A warm, intelligent greeting based on the current weather.
@@ -95,16 +125,17 @@ def generate_html_report(w):
         )
         
         content = response.choices[0].message.content
-        # Cleaning Markdown
-        return content.replace("```html", "").replace("```", "").strip()
+        cleaned_content = content.replace("```html", "").replace("```", "").strip()
+        print("✅ HTML Report generated.")
+        return cleaned_content
         
     except Exception as e:
-        print(f"AI Error: {e}")
+        print(f"❌ AI Generation Error: {e}")
         return None
 
 # --- 3. Send Individual Emails ---
 def send_email(html_content, weather):
-    print(f"Sending to {len(RECIPIENTS)} people...")
+    print(f"📧 Sending to {len(RECIPIENTS)} people...")
 
     emoji = "☀️"
     if "Cloud" in weather["condition"]: emoji = "☁️"
@@ -121,6 +152,10 @@ def send_email(html_content, weather):
             smtp.login(EMAIL_USER, EMAIL_PASS)
             
             for person in RECIPIENTS:
+                if not person:
+                    print("⚠️ Skipping empty recipient address.")
+                    continue
+                    
                 msg = EmailMessage()
                 msg["Subject"] = subject
                 msg["From"] = f"{SENDER_NAME} <{EMAIL_USER}>"
@@ -133,14 +168,19 @@ def send_email(html_content, weather):
                 print(f"✅ Sent to: {person}")
                 
     except Exception as e:
-        print(f"❌ Email Error: {e}")
+        print(f"❌ Email Sending Error: {e}")
 
 # --- Main Logic ---
 if __name__ == "__main__":
+    if not WEATHER_KEY or not OPENROUTER_KEY or not EMAIL_USER or not EMAIL_PASS:
+        print("⚠️ Warning: Missing API Keys or Credentials. Script may fail.")
+
     weather = get_weather()
     if weather:
         html = generate_html_report(weather)
         if html:
             send_email(html, weather)
+        else:
+             print("❌ Failed to generate HTML report.")
     else:
-        print("Failed to fetch data.")
+        print("❌ Failed to fetch weather data.")
